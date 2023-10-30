@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Cropper</title>
+</head>
+
+<body>
+    <h1>PDF Cropper</h1>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ pdf_form.as_p }}
+        <h2>Crop Area:</h2>
+        {{ crop_form.as_p }}
+        <button type="submit">Crop PDF</button>
+    </form>
+</body>
+
+</html>
