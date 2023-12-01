@@ -14,7 +14,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from .forms import CropForm
 
-
 class PDFCropAPIView(APIView):
     def post(self, request, format=None):
         try:
