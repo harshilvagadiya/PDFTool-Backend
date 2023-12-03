@@ -16,6 +16,12 @@ from .forms import CropForm
 
 class PDFCropAPIView(APIView):
     def post(self, request, format=None):
+        sorted_pages = []
+        response_data = []
+        new_pagedata1 = []
+        new_pagedata2 = []
+        new_pagedata3 = []
+        response_data_extra = []
         try:
             uploaded_file1 = request.FILES['pdf_file']
             pdf_bytes = uploaded_file1.read()
@@ -81,7 +87,7 @@ class PDFCropAPIView(APIView):
             print("new_pagedata3:------------>", new_pagedata3)
             print("new_pagedata4:------------>", new_pagedata4)
 
-            stored_pages = []
+            sorted_pages = []
             sorted_pages = [page_num for page_num, _ in sorted([(i, sku_names[i]) for i in range(len(sku_names))], key=lambda x: x[1])]
             
             if  new_pagedata1 and not new_pagedata2 and not new_pagedata3 and not new_pagedata4:
