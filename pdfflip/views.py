@@ -13,15 +13,10 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .forms import CropForm
+import random
 
 class PDFCropAPIView(APIView):
     def post(self, request, format=None):
-        sorted_pages = []
-        response_data = []
-        new_pagedata1 = []
-        new_pagedata2 = []
-        new_pagedata3 = []
-        response_data_extra = []
         try:
             uploaded_file1 = request.FILES['pdf_file']
             pdf_bytes = uploaded_file1.read()
@@ -475,7 +470,10 @@ class PDFCropAPIView(APIView):
                 pdf_writer.write(output_buffer)
                 output_buffer.seek(0)
 
-            output_pdf_path = 'output.pdf'
+            random_number = random.randint(50, 100000000000)
+            output_pdf_path = f'output_{random_number}.pdf'
+            name_of_file = output_pdf_path
+            print('name_of_file: 222222222222222222222====>>>>', name_of_file)
             with open(output_pdf_path, 'wb') as output_pdf:
                 pdf_writer.write(output_pdf)
 
@@ -519,12 +517,12 @@ class PDFCropAPIView(APIView):
                             pass
                 pdf_document.close()
 
-            output_pdf_path = os.path.join(settings.MEDIA_ROOT, 'output.pdf')
+            output_pdf_path = os.path.join(settings.MEDIA_ROOT, name_of_file)
             
             with open(output_pdf_path, 'wb') as output_pdf:
                 pdf_writer.write(output_pdf)
 
-            file_url = settings.MEDIA_URL + 'output.pdf'
+            file_url = settings.MEDIA_URL + name_of_file
             
             response_data = {
                 'message': 'PDF cropped successfully.',
