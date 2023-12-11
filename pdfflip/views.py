@@ -1,4 +1,6 @@
-from PyPDF2 import PdfFileReader, PdfFileWriter
+import textract
+from PyPDF4 import PdfFileReader, PdfFileWriter
+# from PyPDF2 import PdfFileReader, PdfFileWriter
 from .serializer import UploadedPDFSerializer
 import fitz
 import re
@@ -15,6 +17,7 @@ from rest_framework import status
 from .forms import CropForm
 import random
 
+import fitz
 class PDFCropAPIView(APIView):
     def post(self, request, format=None):
         try:
@@ -133,7 +136,7 @@ class PDFCropAPIView(APIView):
 
             output_list = [[value for value in d.values()] for d in response_data]
 
-            heading = "*                      This Flipkart label is provided by JD                         *"
+            heading = "*                      This Flipkart label is provided by PDFTool                         *"
             heading_row = [heading]
 
             output_list.insert(0, heading_row)
@@ -219,7 +222,7 @@ class PDFCropAPIView(APIView):
             if new_pagedata1 :
                 output_list = [[value for value in d.values()] for d in new_pagedata1]
                 
-                heading = "*                      This Flipkart label is provided by JD                         *"
+                heading = "*                      This Flipkart label is provided by PDFTool                         *"
 
                 heading_row = [heading]
                 output_list.insert(0, heading_row)
@@ -306,7 +309,7 @@ class PDFCropAPIView(APIView):
             if new_pagedata2:
                 output_list = [[value for value in d.values()] for d in new_pagedata2]
                 
-                heading = "*                      This Flipkart label is provided by JD                         *"
+                heading = "*                      This Flipkart label is provided by PDFTool                         *"
 
                 heading_row = [heading]
                 output_list.insert(0, heading_row)
@@ -391,7 +394,7 @@ class PDFCropAPIView(APIView):
             if new_pagedata3:
                 output_list = [[value for value in d.values()] for d in new_pagedata3]
                 
-                heading = "*                      This Flipkart label is provided by JD                         *"
+                heading = "*                      This Flipkart label is provided by PDFTool                         *"
 
                 heading_row = [heading]
                 output_list.insert(0, heading_row)
