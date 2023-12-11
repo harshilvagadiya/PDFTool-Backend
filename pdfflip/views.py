@@ -51,6 +51,8 @@ class PDFCropAPIView(APIView):
             new_pagedata2 = []
             new_pagedata3 = []
             new_pagedata4 = []
+            sorted_pages = []
+
         
 
             static_data_fix = {
