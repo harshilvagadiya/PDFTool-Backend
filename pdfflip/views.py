@@ -1,4 +1,3 @@
-import textract
 from PyPDF4 import PdfFileReader, PdfFileWriter
 # from PyPDF2 import PdfFileReader, PdfFileWriter
 from .serializer import UploadedPDFSerializer
