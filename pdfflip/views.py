@@ -86,7 +86,7 @@ class PDFCropAPIView(APIView):
             print("new_pagedata3:------------>", new_pagedata3)
             print("new_pagedata4:------------>", new_pagedata4)
 
-            sorted_pages = []
+            # sorted_pages = []
             sorted_pages = [page_num for page_num, _ in sorted([(i, sku_names[i]) for i in range(len(sku_names))], key=lambda x: x[1])]
             
             if  new_pagedata1 and not new_pagedata2 and not new_pagedata3 and not new_pagedata4:
@@ -126,7 +126,7 @@ class PDFCropAPIView(APIView):
 
             pdf_reader = PdfFileReader(pdf_path)
             pdf_writer = PdfFileWriter()
-
+            
             for page_num in sorted_pages:
                 page = pdf_reader.getPage(page_num)
                 page.cropBox.upperLeft = (x, y)
