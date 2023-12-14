@@ -123,7 +123,7 @@ class PDFCropAPIView(APIView):
             
             for index, pages in enumerate(sublists):
                 output_list = [[value for value in page.values()] for page in pages]
-                heading = "*" + " "*22 + "This Flipkart label is provided by JD" + " "*22 + "*"
+                heading = "*" + " "*22 + "This Flipkart label is provided by PDFTool" + " "*22 + "*"
                 temp_canvas, temp_buffer = self.make_table_header(output_list, heading, style)
 
                 output_list2 = [[value for value in ti.values()] for ti in total_items]
