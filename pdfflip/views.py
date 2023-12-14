@@ -1,5 +1,5 @@
+import datetime
 from PyPDF4 import PdfFileReader, PdfFileWriter
-# from PyPDF2 import PdfFileReader, PdfFileWriter
 from .serializer import UploadedPDFSerializer
 import fitz
 import re
@@ -14,27 +14,63 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .forms import CropForm
-import random
 
-import fitz
+
+style = TableStyle([('BACKGROUND', (0, 0), (-1, 0), (0.7, 0.7, 0.7)),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), (1, 1, 1)),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Times-Bold'),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), (0.9, 0.9, 0.9)),
+                    ('GRID', (0, 0), (-1, -1), 1, (0, 0, 0)),
+                    ('SPAN', (0, 0), (-1, 0)),
+                    ('FONTSIZE', (0, 0), (-1, -1), 6),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 3),  # Set bottom padding for the header row
+                    ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
+                    ])
+
 class PDFCropAPIView(APIView):
+
+    def make_table_header(self, output_list, heading, style):
+        output_list.insert(0, [heading])
+        temp_buffer = BytesIO()
+        temp_canvas = canvas.Canvas(temp_buffer, pagesize=letter)
+        table = Table(output_list)
+        table.setStyle(style)
+        table.wrap(0, 0)
+        table_height = table._height - 45
+        y_coordinate = letter[1] - table_height - 60
+        table.wrapOn(temp_canvas, 0, 0)
+        table.drawOn(temp_canvas, 200, y_coordinate)
+        return temp_canvas, temp_buffer
+
+    def make_total_table(self, temp_canvas, output_list2, heading, style):
+        output_list2.insert(0, [heading])
+        table2 = Table(output_list2)
+        table2.setStyle(style)
+        table2.wrap(0, 0)
+        table2_height = table2._height + 230
+        y_coordinate2 = letter[1] - table2_height - 60
+        table2.wrapOn(temp_canvas, 0, 0)
+        table2.drawOn(temp_canvas, 200, y_coordinate2)
+
+
     def post(self, request, format=None):
         try:
+            sku_names = []
             uploaded_file1 = request.FILES['pdf_file']
             pdf_bytes = uploaded_file1.read()
-
             pdf_document = fitz.open("pdf", pdf_bytes)
             extracted_data = defaultdict(int)
             pattern = r'Description\nQTY\n1\s+(.*?)\s+'
 
-            sku_names = []
             for page_num in range(len(pdf_document)):
                 page = pdf_document.load_page(page_num)
                 text = page.get_text("text")
                 lines = text.split('\n')
 
-                if len(lines) >= 2: 
-                    first_line = lines[1].strip() 
+                if len(lines) >= 2:
+                    first_line = lines[1].strip()
                     unique_first_lines = set()
                     if first_line not in unique_first_lines:
                         unique_first_lines.add(first_line)
@@ -45,74 +81,25 @@ class PDFCropAPIView(APIView):
                 sku_names.append((matches[0], page_num))
             pdf_document.close()
 
-            response_data = []
-            response_data_extra = []
-            new_pagedata1 = []
-            new_pagedata2 = []
-            new_pagedata3 = []
-            new_pagedata4 = []
-            sorted_pages = []
-
-        
-
-            static_data_fix = {
-                "QTY": "QTY",
-                "SKU": "SKU"
-            }
-            response_data.append(static_data_fix)
-
-            if new_pagedata1:
-                new_pagedata1.append(static_data_fix)
+            total_items = []
+            all_data_values = [{"QTY": value, "SKU": key} for key, value in extracted_data.items()]
 
             total_order_quantity = 0
-            for sku, qty in extracted_data.items():
-                order_qty = max(1, qty)
+            for items in all_data_values:
+                order_qty = max(1, items["QTY"])
                 total_order_quantity += order_qty
 
-                if len(response_data) <= 15:
-                    response_data.append({"QTY": order_qty, "SKU": sku})
-                elif len(new_pagedata1) <= 14:
-                    new_pagedata1.append({"QTY": order_qty, "SKU": sku})
-                elif len(new_pagedata2) <= 14:
-                    new_pagedata2.append({"QTY": order_qty, "SKU": sku})
-                elif len(new_pagedata3) <= 14:
-                    new_pagedata3.append({"QTY": order_qty, "SKU": sku})
-                else:
-                    new_pagedata4.append({"QTY": order_qty, "SKU": sku})
+            sublist_limit = 15
+            sublists = [all_data_values[i:i + sublist_limit] for i in range(0, len(all_data_values), sublist_limit)]
+            sublists[-1].append({"total_order_quantity": f"Total Package: {total_order_quantity}"})
+            sublists[0].insert(0, {"QTY": "QTY", "SKU": "SKU"})
 
-            print("response_data:-----------> ", response_data)
-            print("new_pagedata1:------------>", new_pagedata1)
-            print("new_pagedata2:------------>", new_pagedata2)
-            print("new_pagedata3:------------>", new_pagedata3)
-            print("new_pagedata4:------------>", new_pagedata4)
-
-            # sorted_pages = []
             sorted_pages = [page_num for page_num, _ in sorted([(i, sku_names[i]) for i in range(len(sku_names))], key=lambda x: x[1])]
-            
-            if  new_pagedata1 and not new_pagedata2 and not new_pagedata3 and not new_pagedata4:
-                total_order = f"Total Package: {total_order_quantity}" 
-                new_pagedata1.append({"total_order_quantity": total_order})
-            elif new_pagedata2 and not new_pagedata3 and not new_pagedata4:
-                total_order = f"Total Package: {total_order_quantity}" 
-                new_pagedata2.append({"total_order_quantity": total_order})
-            elif new_pagedata3 and not new_pagedata4:
-                total_order = f"Total Package: {total_order_quantity}" 
-                new_pagedata3.append({"total_order_quantity": total_order})
-            elif new_pagedata4:
-                total_order = f"Total Package: {total_order_quantity}" 
-                new_pagedata4.append({"total_order_quantity": total_order})
-            else:
-                total_order = f"Total Package: {total_order_quantity}" 
 
-            courier_partner = f"Courier Partner: {first_line}"   
-                
-            # response_data_extra_lable = {"total_order_quantity": "Package","courier_partner":"Courier Partner"}
-            # response_data_extra.append(response_data_extra_lable)
+            total_items.append({"total_order_quantity": total_order_quantity, "courier_partner": f"Courier Partner: {first_line}"})
 
-            response_data_extra.append({"total_order_quantity": total_order,"courier_partner":courier_partner})
-            
         except Exception as e:
-            print("ERRRRORRR =>",e)
+            raise
 
         pdf_form = UploadedPDFSerializer(data=request.data)
         crop_form = CropForm(request.data)
@@ -126,408 +113,88 @@ class PDFCropAPIView(APIView):
 
             pdf_reader = PdfFileReader(pdf_path)
             pdf_writer = PdfFileWriter()
-            
             for page_num in sorted_pages:
                 page = pdf_reader.getPage(page_num)
                 page.cropBox.upperLeft = (x, y)
                 page.cropBox.lowerRight = (x + width, y - height)
                 pdf_writer.addPage(page)
 
-#==============================================FIRST TABLE PAGE1 ==========================================================
+            last_index = len(sublists) - 1
+            
+            for index, pages in enumerate(sublists):
+                output_list = [[value for value in page.values()] for page in pages]
+                heading = "*" + " "*22 + "This Flipkart label is provided by JD" + " "*22 + "*"
+                temp_canvas, temp_buffer = self.make_table_header(output_list, heading, style)
 
-            output_list = [[value for value in d.values()] for d in response_data]
+                output_list2 = [[value for value in ti.values()] for ti in total_items]
 
-            heading = "*                      This Flipkart label is provided by PDFTool                         *"
-            heading_row = [heading]
-
-            output_list.insert(0, heading_row)
-
-            temp_buffer = BytesIO()
-            temp_canvas = canvas.Canvas(temp_buffer, pagesize=letter)
-
-            data = output_list
-            table = Table(data)
-            style = TableStyle([('BACKGROUND', (0, 0), (-1, 0), (0.7, 0.7, 0.7)),
-                                ('TEXTCOLOR', (0, 0), (-1, 0), (1, 1, 1)),
-                                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                                ('BACKGROUND', (0, 1), (-1, -1), (0.9, 0.9, 0.9)),
-                                ('GRID', (0, 0), (-1, -1), 1, (0, 0, 0)),
-                                ('SPAN', (0, 0), (-1, 0)), 
-                                ('FONTSIZE', (0, 0), (-1, -1), 6),
-                                ('BOTTOMPADDING', (0, 0), (-1, 0), 3),  # Set bottom padding for the header row
-                                ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
-                                ])
-            table.setStyle(style)
-            table.wrap(0, 0)
-            table_height = table._height - 45
-
-            page_height = letter[1]
-            # Change height of table
-            y_coordinate = page_height - table_height - 60
-            table.wrapOn(temp_canvas, 0, 0)
-            table.drawOn(temp_canvas, 200, y_coordinate)
-
-
-#============================================== TABLE TWO PAGE 1 ===========================================================
-            if not new_pagedata1:
-                output_list2 = [[value for value in d.values()] for d in response_data_extra]
-
-                heading2 = "Courier wise total package:"
-                heading_row2 = [heading2]
-                output_list2.insert(0, heading_row2)
-                
-                data = output_list2
-                table2 = Table(data)
-                print('table2:2222222 = > ', table2)
-                style2 = TableStyle([('BACKGROUND', (0, 0), (-1, 0), (0.7, 0.7, 0.7)),
-                                    ('TEXTCOLOR', (0, 0), (-1, 0), (1, 1, 1)),
-                                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                                    ('BACKGROUND', (0, 1), (-1, -1), (0.9, 0.9, 0.9)),
-                                    ('GRID', (0, 0), (-1, -1), 1, (0, 0, 0)),
-                                    ('SPAN', (0, 0), (-1, 0)), 
-                                    ('FONTSIZE', (0, 0), (-1, -1), 6),
-                                    ('BOTTOMPADDING', (0, 0), (-1, 0), 3),  # Set bottom padding for the header row
-                                    ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
-                                    
-                                    ])
-                table2.setStyle(style2)
-                table2.wrap(0, 0) 
-                table2_height = table2._height + 230 
-                
-                page_height2 = letter[1]
-                y_coordinate2 = page_height2 - table2_height - 60  
-
-                table2.wrapOn(temp_canvas, 0, 0)
-                table2.drawOn(temp_canvas, 200, y_coordinate2)  
-
-            temp_canvas.save()
-            temp_buffer.seek(0)
-            overlay_pdf = PdfFileReader(temp_buffer)
-            overlay_page = overlay_pdf.getPage(0)
-            overlay_page.cropBox.upperLeft = (x, y)
-            overlay_page.cropBox.lowerRight = (x + width, y - height)
-            pdf_writer.addPage(overlay_page)
-
-            output_buffer = BytesIO()
-            pdf_writer.write(output_buffer)
-            output_buffer.seek(0)
-
-
-
-# ============================================FIRST TABLE PAGE 222222==============================================================
-
-            if new_pagedata1 :
-                output_list = [[value for value in d.values()] for d in new_pagedata1]
-                
-                heading = "*                      This Flipkart label is provided by PDFTool                         *"
-
-                heading_row = [heading]
-                output_list.insert(0, heading_row)
-
-                temp_buffer = BytesIO()
-                temp_canvas = canvas.Canvas(temp_buffer, pagesize=letter)
-
-                data = output_list
-                table = Table(data)
-                style = TableStyle([('BACKGROUND', (0, 0), (-1, 0), (0.7, 0.7, 0.7)),
-                                    ('TEXTCOLOR', (0, 0), (-1, 0), (1, 1, 1)),
-                                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                                    ('BACKGROUND', (0, 1), (-1, -1), (0.9, 0.9, 0.9)),
-                                    ('GRID', (0, 0), (-1, -1), 1, (0, 0, 0)),
-                                    ('SPAN', (0, 0), (-1, 0)), 
-                                    ('FONTSIZE', (0, 0), (-1, -1), 6),
-                                    ('BOTTOMPADDING', (0, 0), (-1, 0), 3),  # Set bottom padding for the header row
-                                    ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
-                                    
-                                    ])
-                table.setStyle(style)
-                table.wrap(0, 0)
-                table_height = table._height - 45
-
-                page_height = letter[1]
-                y_coordinate = page_height - table_height - 60
-
-                table.wrapOn(temp_canvas, 0, 0)
-                table.drawOn(temp_canvas, 200, y_coordinate)
-
-
-    #==============================================SECOND TABLE 2nd PAGE ===========================================================
-                if not new_pagedata3  and not new_pagedata2 and not new_pagedata4:
-                    output_list2 = [[value for value in d.values()] for d in response_data_extra]
-
-                    heading2 = "Courier wise total package:"
-                    heading_row2 = [heading2]
-
-                    # Add heading_row to the beginning of output_list
-                    output_list2.insert(0, heading_row2)
-
-                    data = output_list2
-                    table2 = Table(data)
-                    style2 = TableStyle([('BACKGROUND', (0, 0), (-1, 0), (0.7, 0.7, 0.7)),
-                                        ('TEXTCOLOR', (0, 0), (-1, 0), (1, 1, 1)),
-                                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                                        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                                        ('BACKGROUND', (0, 1), (-1, -1), (0.9, 0.9, 0.9)),
-                                        ('GRID', (0, 0), (-1, -1), 1, (0, 0, 0)),
-                                        ('SPAN', (0, 0), (-1, 0)), 
-                                        ('FONTSIZE', (0, 0), (-1, -1), 6),
-                                        ('BOTTOMPADDING', (0, 0), (-1, 0), 3),  # Set bottom padding for the header row
-                                        ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
-                                        ])
-                    table2.setStyle(style2)
-                    table2.wrap(0, 0) 
-                    table2_height = table2._height + 230  
-
-                    page_height2 = letter[1]
-                    y_coordinate2 = page_height2 - table2_height - 60  
-
-                    table2.wrapOn(temp_canvas, 0, 0)
-                    table2.drawOn(temp_canvas, 200, y_coordinate2)  
+                if index == last_index:
+                    heading = "Courier wise total package"
+                    self.make_total_table(temp_canvas, output_list2, heading, style)
 
                 temp_canvas.save()
                 temp_buffer.seek(0)
                 overlay_pdf = PdfFileReader(temp_buffer)
                 overlay_page = overlay_pdf.getPage(0)
-                pdf_writer.addPage(overlay_page)
                 overlay_page.cropBox.upperLeft = (x, y)
                 overlay_page.cropBox.lowerRight = (x + width, y - height)
-
+                pdf_writer.addPage(overlay_page)
                 output_buffer = BytesIO()
                 pdf_writer.write(output_buffer)
                 output_buffer.seek(0)
 
-
-
-# ============================================FIRST TABLE PAGE 3==============================================================
-
-            if new_pagedata2:
-                output_list = [[value for value in d.values()] for d in new_pagedata2]
-                
-                heading = "*                      This Flipkart label is provided by PDFTool                         *"
-
-                heading_row = [heading]
-                output_list.insert(0, heading_row)
-
-                temp_buffer = BytesIO()
-                temp_canvas = canvas.Canvas(temp_buffer, pagesize=letter)
-
-                data = output_list
-                table = Table(data)
-                style = TableStyle([('BACKGROUND', (0, 0), (-1, 0), (0.7, 0.7, 0.7)),
-                                    ('TEXTCOLOR', (0, 0), (-1, 0), (1, 1, 1)),
-                                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                                    ('BACKGROUND', (0, 1), (-1, -1), (0.9, 0.9, 0.9)),
-                                    ('GRID', (0, 0), (-1, -1), 1, (0, 0, 0)),
-                                    ('SPAN', (0, 0), (-1, 0)), 
-                                    ('FONTSIZE', (0, 0), (-1, -1), 6),
-                                    ('BOTTOMPADDING', (0, 0), (-1, 0), 3),  # Set bottom padding for the header row
-                                    ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
-                                    
-                                    ])
-                table.setStyle(style)
-                table.wrap(0, 0)
-                table_height = table._height - 45
-
-                page_height = letter[1]
-                y_coordinate = page_height - table_height - 60
-
-                table.wrapOn(temp_canvas, 0, 0)
-                table.drawOn(temp_canvas, 200, y_coordinate)
-
-
-    #==============================================SECOND TABLE 3nd page ===========================================================
-                if not new_pagedata3 and not new_pagedata4:
-                    output_list2 = [[value for value in d.values()] for d in response_data_extra]
-
-                    heading2 = "Courier wise total package:"
-                    heading_row2 = [heading2]
-
-                    output_list2.insert(0, heading_row2)
-
-                    data = output_list2
-                    table2 = Table(data)
-                    style2 = TableStyle([('BACKGROUND', (0, 0), (-1, 0), (0.7, 0.7, 0.7)),
-                                        ('TEXTCOLOR', (0, 0), (-1, 0), (1, 1, 1)),
-                                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                                        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                                        ('BACKGROUND', (0, 1), (-1, -1), (0.9, 0.9, 0.9)),
-                                        ('GRID', (0, 0), (-1, -1), 1, (0, 0, 0)),
-                                        ('SPAN', (0, 0), (-1, 0)), 
-                                        ('FONTSIZE', (0, 0), (-1, -1), 6),
-                                        ('BOTTOMPADDING', (0, 0), (-1, 0), 3),  # Set bottom padding for the header row
-                                        ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
-                                        ])
-                    table2.setStyle(style2)
-                    table2.wrap(0, 0) 
-                    table2_height = table2._height + 230  
-
-                    page_height2 = letter[1]
-                    y_coordinate2 = page_height2 - table2_height - 60  
-
-                    table2.wrapOn(temp_canvas, 0, 0)
-                    table2.drawOn(temp_canvas, 200, y_coordinate2)  
-
-                temp_canvas.save()
-                temp_buffer.seek(0)
-                overlay_pdf = PdfFileReader(temp_buffer)
-                overlay_page = overlay_pdf.getPage(0)
-                pdf_writer.addPage(overlay_page)
-                overlay_page.cropBox.upperLeft = (x, y)
-                overlay_page.cropBox.lowerRight = (x + width, y - height)
-
-                output_buffer = BytesIO()
-                pdf_writer.write(output_buffer)
-                output_buffer.seek(0)
-
-
-# ============================================FIRST TABLE PAGE 4==============================================================
-
-            if new_pagedata3:
-                output_list = [[value for value in d.values()] for d in new_pagedata3]
-                
-                heading = "*                      This Flipkart label is provided by PDFTool                         *"
-
-                heading_row = [heading]
-                output_list.insert(0, heading_row)
-
-                temp_buffer = BytesIO()
-                temp_canvas = canvas.Canvas(temp_buffer, pagesize=letter)
-
-                data = output_list
-                table = Table(data)
-                style = TableStyle([('BACKGROUND', (0, 0), (-1, 0), (0.7, 0.7, 0.7)),
-                                    ('TEXTCOLOR', (0, 0), (-1, 0), (1, 1, 1)),
-                                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                                    ('BACKGROUND', (0, 1), (-1, -1), (0.9, 0.9, 0.9)),
-                                    ('GRID', (0, 0), (-1, -1), 1, (0, 0, 0)),
-                                    ('SPAN', (0, 0), (-1, 0)), 
-                                    ('FONTSIZE', (0, 0), (-1, -1), 6),
-                                    ('BOTTOMPADDING', (0, 0), (-1, 0), 3),  # Set bottom padding for the header row
-                                    ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
-                                    
-                                    ])
-                table.setStyle(style)
-                table.wrap(0, 0)
-                table_height = table._height - 45
-
-                page_height = letter[1]
-                y_coordinate = page_height - table_height - 60
-
-                table.wrapOn(temp_canvas, 0, 0)
-                table.drawOn(temp_canvas, 200, y_coordinate)
-
-
-    #==============================================SECOND TABLE 4th page ===========================================================
-                if not new_pagedata4:
-                    output_list2 = [[value for value in d.values()] for d in response_data_extra]
-
-                    heading2 = "Courier wise total package:"
-                    heading_row2 = [heading2]
-
-                    output_list2.insert(0, heading_row2)
-
-                    data = output_list2
-                    table2 = Table(data)
-                    style2 = TableStyle([('BACKGROUND', (0, 0), (-1, 0), (0.7, 0.7, 0.7)),
-                                        ('TEXTCOLOR', (0, 0), (-1, 0), (1, 1, 1)),
-                                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                                        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                                        ('BACKGROUND', (0, 1), (-1, -1), (0.9, 0.9, 0.9)),
-                                        ('GRID', (0, 0), (-1, -1), 1, (0, 0, 0)),
-                                        ('SPAN', (0, 0), (-1, 0)), 
-                                        ('FONTSIZE', (0, 0), (-1, -1), 6),
-                                        ('BOTTOMPADDING', (0, 0), (-1, 0), 3),  # Set bottom padding for the header row
-                                        ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
-                                        ])
-                    table2.setStyle(style2)
-                    table2.wrap(0, 0) 
-                    table2_height = table2._height + 230  
-
-                    page_height2 = letter[1]
-                    y_coordinate2 = page_height2 - table2_height - 60  
-
-                    table2.wrapOn(temp_canvas, 0, 0)
-                    table2.drawOn(temp_canvas, 200, y_coordinate2)  
-
-                temp_canvas.save()
-                temp_buffer.seek(0)
-                overlay_pdf = PdfFileReader(temp_buffer)
-                overlay_page = overlay_pdf.getPage(0)
-                pdf_writer.addPage(overlay_page)
-                overlay_page.cropBox.upperLeft = (x, y)
-                overlay_page.cropBox.lowerRight = (x + width, y - height)
-
-                output_buffer = BytesIO()
-                pdf_writer.write(output_buffer)
-                output_buffer.seek(0)
-
-            random_number = random.randint(50, 100000000000)
-            output_pdf_path = f'output_{random_number}.pdf'
+            current_time = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            output_pdf_path = f'output_{current_time}.pdf'
             name_of_file = output_pdf_path
-            print('name_of_file: 222222222222222222222====>>>>', name_of_file)
+
             with open(output_pdf_path, 'wb') as output_pdf:
                 pdf_writer.write(output_pdf)
 
-            with open(output_pdf_path, 'rb') as output_pdf:
-                pdf_document = fitz.open(output_pdf)
+            # with open(output_pdf_path, 'rb') as output_pdf:
+            #     pdf_document = fitz.open(output_pdf)
 
-                pdf_document.select(sorted_pages)
-                for page_num in range(len(pdf_document)):
-                    current_page = pdf_document[page_num]
-                    text = current_page.get_text()
+            #     pdf_document.select(sorted_pages)
+            #     for page_num in range(len(pdf_document)):
+            #         current_page = pdf_document[page_num]
+            #         text = current_page.get_text()
 
-                    qty_pattern = r'QTY\s*:\s*(\d+)'
-                    qty_match = re.search(qty_pattern, text)
-                
-                    if qty_match:
-                        qty_value = qty_match.group(1)
-                        value_below_qty_pattern = r'QTY\s*:\s*' + qty_value + r'\s*(\S.*)'
-                        value_match = re.search(value_below_qty_pattern, text)
+            #         qty_pattern = r'QTY\s*:\s*(\d+)'
+            #         qty_match = re.search(qty_pattern, text)
+
+            #         if qty_match:
+            #             qty_value = qty_match.group(1)
+            #             value_below_qty_pattern = r'QTY\s*:\s*' + qty_value + r'\s*(\S.*)'
+            #             value_match = re.search(value_below_qty_pattern, text)
+
+            #             if value_match:
+            #                 value_below_qty = value_match.group(1)
+            #             else:
+            #                 print(f"No value found below QTY on page {page_num + 1}.")
+
+            #     x = 200
+            #     y = 300
+            #     width = 78.1853
+            #     height = 17.5
+
+            #     with open(output_pdf_path, 'rb') as output_pdf:
+            #         pdf_document = fitz.open(output_pdf)
+            #         region = fitz.Rect(x, y - height, x + width, y)
+            #         for page_num in range(len(pdf_document)):
+            #             current_page = pdf_document[page_num]
+            #             text = current_page.get_text("text", clip=region)
+
+            #             if text.strip():
+            #                 pass
                         
-                        if value_match:
-                            value_below_qty = value_match.group(1)
-                        else:
-                            print(f"No value found below QTY on page {page_num + 1}.")
-                    else:
-                        pass
-                pdf_document.close()
+            #     pdf_document.close()
 
-                x = 200
-                y = 300
-                width = 78.1853
-                height = 17.5
+            pdf_path = os.path.join(settings.MEDIA_ROOT, output_pdf_path)
 
-                with open(output_pdf_path, 'rb') as output_pdf:
-                    pdf_document = fitz.open(output_pdf)
-                    region = fitz.Rect(x, y - height, x + width, y)
-                    for page_num in range(len(pdf_document)):
-                        current_page = pdf_document[page_num]
-                        text = current_page.get_text("text", clip=region)
-
-                        if text.strip(): 
-                            pass
-                pdf_document.close()
-
-            output_pdf_path = os.path.join(settings.MEDIA_ROOT, name_of_file)
-            
-            with open(output_pdf_path, 'wb') as output_pdf:
+            with open(pdf_path, 'wb') as output_pdf:
                 pdf_writer.write(output_pdf)
 
             file_url = settings.MEDIA_URL + name_of_file
-            
+
             response_data = {
                 'message': 'PDF cropped successfully.',
                 'file_path': file_url
@@ -538,14 +205,10 @@ class PDFCropAPIView(APIView):
 
 # ====================================================OVER FLIPKART=====================================================================================
 
-
-
-
 class ExtractPDFData(APIView):
     def post(self, request, format=None):
         try:
             uploaded_file = request.FILES['pdf_file']
-            print('uploaded_file: ', uploaded_file)
             pdf_bytes = uploaded_file.read()
 
             pdf_document = fitz.open("pdf", pdf_bytes)
@@ -556,8 +219,8 @@ class ExtractPDFData(APIView):
                 page = pdf_document.load_page(page_num)
                 text = page.get_text("text")
                 lines = text.split('\n')
-                if len(lines) >= 2: 
-                    first_line = lines[1].strip() 
+                if len(lines) >= 2:
+                    first_line = lines[1].strip()
 
                     unique_first_lines = set()
 
@@ -575,15 +238,13 @@ class ExtractPDFData(APIView):
             total_order_quantity = 0
 
             for sku, qty in extracted_data.items():
-                order_qty = max(1, qty)  
+                order_qty = max(1, qty)
                 total_order_quantity += order_qty
                 response_data.append({"QTY": "1", "SKU": sku, "order": order_qty})
 
             response_data.append({"total_order_quantity": total_order_quantity,"courier_partner":first_line})
-            print('first_line: ', first_line)
 
             return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
