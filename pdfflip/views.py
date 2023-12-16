@@ -144,7 +144,7 @@ class PDFCropAPIView(APIView):
                 output_buffer.seek(0)
 
             current_time = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-            output_pdf_path = f'output_{current_time}.pdf'
+            output_pdf_path = f'output.pdf'
             name_of_file = output_pdf_path
 
             with open(output_pdf_path, 'wb') as output_pdf:
