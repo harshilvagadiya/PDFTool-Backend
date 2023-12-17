@@ -1,13 +1,14 @@
 
 from . import views
 from django.urls import path
-from .views import PDFCropAPIView,ExtractPDFData
+from .views import *
 from django.conf import settings
 from django.conf.urls.static import static
 urlpatterns = [
     # path('flipkart',views.upload_pdf)
     path('api/crop-pdf/', PDFCropAPIView.as_view(), name='crop-pdf-api'),
-    path('api/dict/', ExtractPDFData.as_view(), name='crop-pdf-api'),
+    # path('api/dict/', ExtractPDFData.as_view(), name='crop-pdf-api'),
+    path('api/download-cropped-pdf/<str:file_name>/', DownloadCroppedPDF.as_view(), name='download-cropped-pdf'),
     # path('download-pdf/<str:file_path>/', views.download_pdf, name='download-pdf'), 
 ]
 if settings.DEBUG:

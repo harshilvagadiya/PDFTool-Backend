@@ -14,7 +14,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .forms import CropForm
-
+import uuid
 
 style = TableStyle([('BACKGROUND', (0, 0), (-1, 0), (0.7, 0.7, 0.7)),
                     ('TEXTCOLOR', (0, 0), (-1, 0), (1, 1, 1)),
@@ -143,61 +143,28 @@ class PDFCropAPIView(APIView):
                 pdf_writer.write(output_buffer)
                 output_buffer.seek(0)
 
-            current_time = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-            output_pdf_path = f'output.pdf'
-            name_of_file = output_pdf_path
+            unique_id = str(uuid.uuid4())[:8]
+            output_pdf_path = os.path.join(settings.MEDIA_ROOT, f'output_{unique_id}.pdf')
+
+
+            print("--------------->>>>",output_pdf_path)
+
 
             with open(output_pdf_path, 'wb') as output_pdf:
                 pdf_writer.write(output_pdf)
-
-            # with open(output_pdf_path, 'rb') as output_pdf:
-            #     pdf_document = fitz.open(output_pdf)
-
-            #     pdf_document.select(sorted_pages)
-            #     for page_num in range(len(pdf_document)):
-            #         current_page = pdf_document[page_num]
-            #         text = current_page.get_text()
-
-            #         qty_pattern = r'QTY\s*:\s*(\d+)'
-            #         qty_match = re.search(qty_pattern, text)
-
-            #         if qty_match:
-            #             qty_value = qty_match.group(1)
-            #             value_below_qty_pattern = r'QTY\s*:\s*' + qty_value + r'\s*(\S.*)'
-            #             value_match = re.search(value_below_qty_pattern, text)
-
-            #             if value_match:
-            #                 value_below_qty = value_match.group(1)
-            #             else:
-            #                 print(f"No value found below QTY on page {page_num + 1}.")
-
-            #     x = 200
-            #     y = 300
-            #     width = 78.1853
-            #     height = 17.5
-
-            #     with open(output_pdf_path, 'rb') as output_pdf:
-            #         pdf_document = fitz.open(output_pdf)
-            #         region = fitz.Rect(x, y - height, x + width, y)
-            #         for page_num in range(len(pdf_document)):
-            #             current_page = pdf_document[page_num]
-            #             text = current_page.get_text("text", clip=region)
-
-            #             if text.strip():
-            #                 pass
-                        
-            #     pdf_document.close()
+            os.remove(pdf_path)
 
             pdf_path = os.path.join(settings.MEDIA_ROOT, output_pdf_path)
 
             with open(pdf_path, 'wb') as output_pdf:
                 pdf_writer.write(output_pdf)
 
-            file_url = settings.MEDIA_URL + name_of_file
+            file_url = os.path.join(settings.MEDIA_URL, output_pdf_path)
 
             response_data = {
                 'message': 'PDF cropped successfully.',
-                'file_path': file_url
+                'file_path': os.path.join(settings.MEDIA_URL, f'output_{unique_id}.pdf'),
+                'file_name': f'output_{unique_id}.pdf'
             }
             return Response(response_data, status=status.HTTP_200_OK)
         else:
@@ -205,46 +172,18 @@ class PDFCropAPIView(APIView):
 
 # ====================================================OVER FLIPKART=====================================================================================
 
-class ExtractPDFData(APIView):
-    def post(self, request, format=None):
-        try:
-            uploaded_file = request.FILES['pdf_file']
-            pdf_bytes = uploaded_file.read()
 
-            pdf_document = fitz.open("pdf", pdf_bytes)
-            extracted_data = defaultdict(int)
-            pattern = r'Description\nQTY\n1\s+(.*?)\s+'
-
-            for page_num in range(len(pdf_document)):
-                page = pdf_document.load_page(page_num)
-                text = page.get_text("text")
-                lines = text.split('\n')
-                if len(lines) >= 2:
-                    first_line = lines[1].strip()
-
-                    unique_first_lines = set()
-
-                    if first_line not in unique_first_lines:
-                        unique_first_lines.add(first_line)
-
-
-                matches = re.findall(pattern, text)
-
-                for match in matches:
-                    extracted_data[match] += 1
-
-            pdf_document.close()
-            response_data = []
-            total_order_quantity = 0
-
-            for sku, qty in extracted_data.items():
-                order_qty = max(1, qty)
-                total_order_quantity += order_qty
-                response_data.append({"QTY": "1", "SKU": sku, "order": order_qty})
-
-            response_data.append({"total_order_quantity": total_order_quantity,"courier_partner":first_line})
-
-            return Response(response_data, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+from django.http import FileResponse
+class DownloadCroppedPDF(APIView):
+    def get(self, request, file_name, format=None):
+        pdf_path = os.path.join(settings.MEDIA_ROOT, file_name)
+        if os.path.exists(pdf_path):
+            # Open the file for reading
+            with open(pdf_path, 'rb') as pdf_file:
+                response = FileResponse(pdf_file)
+                response['Content-Type'] = 'application/pdf'
+                response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+                os.remove(pdf_path)
+                return Response({'Success': 'File deleted from backend'})
+        else:
+            return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
