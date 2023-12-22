@@ -16,19 +16,19 @@ from rest_framework import status
 from .forms import CropForm
 import uuid
 
-style = TableStyle([('BACKGROUND', (0, 0), (-1, 0), (0.7, 0.7, 0.7)),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), (1, 1, 1)),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Times-Bold'),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -1), (0.9, 0.9, 0.9)),
-                    ('GRID', (0, 0), (-1, -1), 1, (0, 0, 0)),
-                    ('SPAN', (0, 0), (-1, 0)),
-                    ('FONTSIZE', (0, 0), (-1, -1), 6),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 3),  # Set bottom padding for the header row
-                    ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
-                    ])
-
+style = TableStyle([
+    ('BACKGROUND', (0, 0), (-1, 0), (1, 1, 1)), 
+    ('TEXTCOLOR', (0, 0), (-1, 0), (0, 0, 0)),  
+    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+    ('FONTNAME', (0, 0), (-1, 0), 'Times-Bold'),
+    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+    ('BACKGROUND', (0, 1), (-1, -1), (1, 1, 1)),
+    ('GRID', (0, 0), (-1, -1), 1, (0, 0, 0)),
+    ('SPAN', (0, 0), (-1, 0)),
+    ('FONTSIZE', (0, 0), (-1, -1), 6),
+    ('BOTTOMPADDING', (0, 0), (-1, 0), 3),
+    ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
+])
 class PDFCropAPIView(APIView):
 
     def make_table_header(self, output_list, heading, style):
@@ -89,7 +89,7 @@ class PDFCropAPIView(APIView):
                 order_qty = max(1, items["QTY"])
                 total_order_quantity += order_qty
 
-            sublist_limit = 15
+            sublist_limit = 13
             sublists = [all_data_values[i:i + sublist_limit] for i in range(0, len(all_data_values), sublist_limit)]
             sublists[-1].append({"total_order_quantity": f"Total Package: {total_order_quantity}"})
             sublists[0].insert(0, {"QTY": "QTY", "SKU": "SKU"})
