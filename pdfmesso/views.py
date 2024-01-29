@@ -83,6 +83,8 @@ class MesssoPDFCropAPIView(APIView):
     def post(self, request, format=None):
         try:
             sku_names = []
+            size_info = []
+            sku_size_pairs = {}
             uploaded_file1 = request.FILES['pdf_file']
             pdf_bytes = uploaded_file1.read()
             pdf_document = fitz.open("pdf", pdf_bytes)
@@ -92,19 +94,19 @@ class MesssoPDFCropAPIView(APIView):
             # pattern = r'Order No\.\s+(\b[^\d\W]+\b)(?!\s*Purchase Order No\.)'
             pattern = r'Order No\.\s+([^\s]+)'
             
-            
+            size_info = []  # List to store size information
+            size_pattern = r'SKU\nSize\nQty\nColor\nOrder No\.\n[^\n]+\n([^\n]+)'
+
+
             fold_here_coordinates = self.find_text_coordinates(pdf_document, "Fold Here")
-            for idx, coord in enumerate(fold_here_coordinates, start=1):
-                print(f"Page ==================>>>>>> y = {coord['y']}")
+            # for idx, coord in enumerate(fold_here_coordinates, start=1):
+            #     print(f"Page ==================>>>>>> y = {coord['y']}")
             # print("pattern>>>>>>>>>>>>>>>>>>>>",pattern)
 
             for page_num in range(len(pdf_document)):
                 page = pdf_document.load_page(page_num)
-                # print("page>>>>>>>>>>>>>>.",page)
                 text = page.get_text("text")
-                # print(">>>>> text >>>>>>>>>>",text)
                 lines = text.split('\n')
-                # print(">>>>>>>>>.lines",lines)
 
                 if len(lines) >= 2:
                     first_line = lines[1].strip()
@@ -113,18 +115,27 @@ class MesssoPDFCropAPIView(APIView):
                         unique_first_lines.add(first_line)
 
                 matches = re.findall(pattern, text)
-              
-                if matches:
-                    for match in matches:
-                        extracted_data[matches[0]] += 1
-                        break
-                        print(">>>>>>>>>>>>>>>extracted_data",extracted_data)
-                    sku_names.append((matches[0], page_num))
+                sku_matches = re.findall(pattern, text)
+
+                size_matches = re.findall(size_pattern, text)
+                if size_matches:
+                    for size in size_matches:
+                        size_info.append((size, page_num))
+                
+                if matches and size_matches:
+                    sku_size_pairs[page_num] = (matches[0], size_matches[0])
+
+            for page_num, (sku, size) in sku_size_pairs.items():
+                sku_with_size = f"{sku} {size}"
+                extracted_data[sku_with_size] += 1
+                sku_names.append((sku_with_size, page_num))
+
             print(":::::::::<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>",sku_names)
             pdf_document.close()
 
             total_items = []
             all_data_values = [{"QTY": value, "SKU": key} for key, value in extracted_data.items()]
+            print('all_data_values: ===== >>>>> ', all_data_values)
 
             total_order_quantity = 0
             for items in all_data_values:
@@ -136,12 +147,9 @@ class MesssoPDFCropAPIView(APIView):
             sublists[-1].append({"total_order_quantity": f"Total Package: {total_order_quantity}"})
             sublists[0].insert(0, {"QTY": "QTY", "SKU": "SKU"})
             
-            print("sublist>>>>>>>>>>>>>>>>>>>>>>>>>>>>sublist",sublists)
 
             sorted_pages = [page_num for page_num, _ in sorted([(i, sku_names[i]) for i in range(len(sku_names))], key=lambda x: x[1])]
-            print("sorted_pagessorted_pagessorted_pagessorted_pages", sorted_pages)
             total_items.append({"total_order_quantity": total_order_quantity, "courier_partner": f"Courier Partner: {first_line}"})
-            print(">>>>>>>>>total_items",total_items)
             
         except Exception as e:
             raise
@@ -160,12 +168,8 @@ class MesssoPDFCropAPIView(APIView):
             response_data = json.loads(response_data_str)  
 
             y_values = [item["y"] for item in response_data]
-            print('y_values:1111111 ===========>>>>> ', y_values)
 
             final_list_of_y = [str(float(value) + 356) if value.strip() else '0' for value in y_values]
-            print('final_list_of_y:22222222 ==========>>>>>>>>>> ', final_list_of_y)
-            print("final_list_of_y List of 'y' values:", final_list_of_y)
-
 
             
             y = crop_form.cleaned_data['y']
@@ -190,7 +194,7 @@ class MesssoPDFCropAPIView(APIView):
             
             for index, pages in enumerate(sublists):
                 output_list = [[value for value in page.values()] for page in pages]
-                heading = "*" + " "*22 + "This Messo label is provided by PDFTool" + " "*22 + "*"
+                heading = "*" + " "*22 + "This Meesho label is provided by PDFTool" + " "*22 + "*"
                 temp_canvas, temp_buffer = self.make_table_header(output_list, heading, style)
 
                 output_list2 = [[value for value in ti.values()] for ti in total_items]
