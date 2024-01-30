@@ -130,12 +130,10 @@ class MesssoPDFCropAPIView(APIView):
                 extracted_data[sku_with_size] += 1
                 sku_names.append((sku_with_size, page_num))
 
-            print(":::::::::<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>",sku_names)
             pdf_document.close()
 
             total_items = []
             all_data_values = [{"QTY": value, "SKU": key} for key, value in extracted_data.items()]
-            print('all_data_values: ===== >>>>> ', all_data_values)
 
             total_order_quantity = 0
             for items in all_data_values:
@@ -148,7 +146,16 @@ class MesssoPDFCropAPIView(APIView):
             sublists[0].insert(0, {"QTY": "QTY", "SKU": "SKU"})
             
 
-            sorted_pages = [page_num for page_num, _ in sorted([(i, sku_names[i]) for i in range(len(sku_names))], key=lambda x: x[1])]
+            sku_counts = defaultdict(int)
+            for sku_name, _ in sku_names:
+                sku_counts[sku_name] += 1
+
+            sorted_pages = sorted(
+                [(page_num, sku_names[page_num]) for page_num in range(len(sku_names))],
+                key=lambda x: (sku_counts[x[1][0]], x[1])  
+            )
+            sorted_pages = [page_num for page_num, _ in sorted_pages]
+
             total_items.append({"total_order_quantity": total_order_quantity, "courier_partner": f"Courier Partner: {first_line}"})
             
         except Exception as e:

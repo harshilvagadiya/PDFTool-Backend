@@ -94,8 +94,17 @@ class PDFCropAPIView(APIView):
             sublists[-1].append({"total_order_quantity": f"Total Package: {total_order_quantity}"})
             sublists[0].insert(0, {"QTY": "QTY", "SKU": "SKU"})
 
-            sorted_pages = [page_num for page_num, _ in sorted([(i, sku_names[i]) for i in range(len(sku_names))], key=lambda x: x[1])]
 
+            sku_counts = defaultdict(int)
+            for sku_name, _ in sku_names:
+                sku_counts[sku_name] += 1
+
+            sorted_pages = sorted(
+                [(page_num, sku_names[page_num]) for page_num in range(len(sku_names))],
+                key=lambda x: (sku_counts[x[1][0]], x[1])  
+            )
+            sorted_pages = [page_num for page_num, _ in sorted_pages]
+            
             total_items.append({"total_order_quantity": total_order_quantity, "courier_partner": f"Courier Partner: {first_line}"})
 
         except Exception as e:
@@ -145,10 +154,6 @@ class PDFCropAPIView(APIView):
 
             unique_id = str(uuid.uuid4())[:8]
             output_pdf_path = os.path.join(settings.MEDIA_ROOT, f'output_{unique_id}.pdf')
-
-
-            print("--------------->>>>",output_pdf_path)
-
 
             with open(output_pdf_path, 'wb') as output_pdf:
                 pdf_writer.write(output_pdf)
